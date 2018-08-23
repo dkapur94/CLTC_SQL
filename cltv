@@ -1,0 +1,60 @@
+/* Calculating total customers from 2017-01-01 for all lobs.*/
+
+
+select visitmonth, count(*) as cust_tot
+from
+(select e,visitmonth,lead,diff,
+                              (case
+                               when lead = 1 then 'retained'
+                               when lead > 1 then 'lagger'
+                               when lead IS NULL then 'lost'
+                               end) as cust_type
+from
+(select e,visitmonth,lead,
+                          (case
+                           when lead is not null then lead-visitmonth
+                           when lead is NULL then NULL
+                           end) as diff
+from
+(select e,visitmonth,
+lead(visitmonth)
+     over(partition by e order by visitmonth) as lead
+from
+(select e,((datediff(to_date(from_unixtime(ts DIV 1000)),'2017-01-01')) DIV 30) as visitmonth, count(*) as count
+from hydra.txn_search
+where date_part>= '2017-01-01' 
+and type = 'txn'
+and payment_transactional_amount IS NOT NULL
+and gpm_nav IS NOT NULL
+group by e, ((datediff(to_date(from_unixtime(ts DIV 1000)),'2017-01-01')) DIV 30)) t1)t2)t3)t4
+group by visitmonth
+
+/* Calculating the customers retained per month from 2017-01-01 for all the lobs. */
+select visitmonth, count(*) as cust_retained
+from
+(select e,visitmonth,lead,diff,
+                              (case
+                               when lead = 1 then 'retained'
+                               when lead > 1 then 'lagger'
+                               when lead IS NULL then 'lost'
+                               end) as cust_type
+from
+(select e,visitmonth,lead,
+                          (case
+                           when lead is not null then lead-visitmonth
+                           when lead is NULL then NULL
+                           end) as diff
+from
+(select e,visitmonth,
+lead(visitmonth)
+     over(partition by e order by visitmonth) as lead
+from
+(select e,((datediff(to_date(from_unixtime(ts DIV 1000)),'2017-01-01')) DIV 30) as visitmonth, count(*) as count
+from hydra.txn_search
+where date_part>= '2017-01-01' 
+and type = 'txn'
+and payment_transactional_amount IS NOT NULL
+and gpm_nav IS NOT NULL
+group by e, ((datediff(to_date(from_unixtime(ts DIV 1000)),'2017-01-01')) DIV 30)) r1)r2)r3)r4
+where (cust_type = 'retained' or cust_type = 'lagger')
+group by visitmonth
